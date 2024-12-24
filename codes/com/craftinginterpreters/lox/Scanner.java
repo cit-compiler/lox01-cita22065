@@ -5,18 +5,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.craftinginterpreters.lox.Lox;
-
 import static com.craftinginterpreters.lox.TokenType.*; 
 
 class Scanner {
   private final String source;
   private final List<Token> tokens = new ArrayList<>();
-  private static final Map<String, TokenType> keywords;
-
   private int start = 0;
   private int current = 0;
   private int line = 1;
+  private static final Map<String, TokenType> keywords;
 
   static {
     keywords = new HashMap<>();
@@ -44,6 +41,7 @@ class Scanner {
 
   List<Token> scanTokens() {
     while (!isAtEnd()) {
+      // We are at the beginning of the next lexeme.
       start = current;
       scanToken();
     }
@@ -65,48 +63,56 @@ class Scanner {
       case '+': addToken(PLUS); break;
       case ';': addToken(SEMICOLON); break;
       case '*': addToken(STAR); break; 
+      
       case '!':
-      addToken(match('=') ? BANG_EQUAL : BANG);
-      break;
-    case '=':
-      addToken(match('=') ? EQUAL_EQUAL : EQUAL);
-      break;
-    case '<':
-      addToken(match('=') ? LESS_EQUAL : LESS);
-      break;
-    case '>':
-      addToken(match('=') ? GREATER_EQUAL : GREATER);
-      break;
+        addToken(match('=') ? BANG_EQUAL : BANG);
+        break;
+      case '=':
+        addToken(match('=') ? EQUAL_EQUAL : EQUAL);
+        break;
+      case '<':
+        addToken(match('=') ? LESS_EQUAL : LESS);
+        break;
+      case '>':
+        addToken(match('=') ? GREATER_EQUAL : GREATER);
+        break;
       case '/':
-      if (match('/')) {
-        while (peek() != '\n' && !isAtEnd()) advance();
-      } else {
-        addToken(SLASH);
-      }
-      break;
+        if (match('/')) {
+          // A comment goes until the end of the line.
+          while (peek() != '\n' && !isAtEnd()) advance();
+        } else {
+          addToken(SLASH);
+        }
+        break;
+    
       case ' ':
       case '\r':
       case '\t':
+        // Ignore whitespace.
         break;
 
       case '\n':
         line++;
         break;
-      case '"': string();
-        break;
-      default:
-      if (isDigit(c)) {
-        number();
-      } 
-      else if (isAlpha(c)) {
-        identifier();
-      }
-      else {
-        Lox.error(line, "Unexpected character.");
-      }
-      break;
-    }
+
+      case '"': string(); break;
+
+      case  'o' :
+        if ( match ( 'r' )) {
+          addToken ( OR ); 
+      } break ;
     
+      default:
+        if (isDigit(c)) {
+          number();
+        } else if (isAlpha(c)) {
+          identifier();
+        }else {
+          Lox.error(line, "Unexpected character.");
+        }
+        break;
+    }
+
   }
 
   private void identifier() {
@@ -116,11 +122,14 @@ class Scanner {
     if (type == null) type = IDENTIFIER;
     addToken(type);
   }
+    
 
   private void number() {
     while (isDigit(peek())) advance();
 
+    // Look for a fractional part.
     if (peek() == '.' && isDigit(peekNext())) {
+      // Consume the "."
       advance();
 
       while (isDigit(peek())) advance();
@@ -141,8 +150,10 @@ class Scanner {
       return;
     }
 
+    // The closing ".
     advance();
 
+    // Trim the surrounding quotes.
     String value = source.substring(start + 1, current - 1);
     addToken(STRING, value);
   }
@@ -195,8 +206,6 @@ class Scanner {
     String text = source.substring(start, current);
     tokens.add(new Token(type, text, literal, line));
   }
-
-
 
 
 }
