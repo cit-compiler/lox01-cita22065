@@ -1,13 +1,13 @@
 package com.craftinginterpreters.lox;
 
+import java.util.ArrayList;
 import java.util.List;
-
-import com.craftinginterpreters.lox.Lox;
 
 import static com.craftinginterpreters.lox.TokenType.*;
 
 class Parser {
   private static class ParseError extends RuntimeException {}
+
   private final List<Token> tokens;
   private int current = 0;
 
@@ -15,16 +15,103 @@ class Parser {
     this.tokens = tokens;
   }
 
-  Expr parse() {
+  List<Stmt> parse() {
+    List<Stmt> statements = new ArrayList<>();
+    while (!isAtEnd()) {
+      statements.add(declaration());
+    }
+
+    return statements; 
+  }
+
+  private Expr expression() {
+    return assignment();
+  }
+
+  private Stmt declaration() {
     try {
-      return expression();
+      if (match(VAR)) return varDeclaration();
+
+      return statement();
     } catch (ParseError error) {
+      synchronize();
       return null;
     }
   }
 
-  private Expr expression() {
-    return equality();
+  private Stmt statement() {
+    if (match(IF)) return ifStatement();
+    if (match(PRINT)) return printStatement();
+    if (match(LEFT_BRACE)) return new Stmt.Block(block());
+
+    return expressionStatement();
+  }
+
+  private Stmt ifStatement() {
+    consume(LEFT_PAREN, "Expect '(' after 'if'.");
+    Expr condition = expression();
+    consume(RIGHT_PAREN, "Expect ')' after if condition."); 
+
+    Stmt thenBranch = statement();
+    Stmt elseBranch = null;
+    if (match(ELSE)) {
+      elseBranch = statement();
+    }
+
+    return new Stmt.If(condition, thenBranch, elseBranch);
+  }
+
+  private Stmt printStatement() {
+    Expr value = expression();
+    consume(SEMICOLON, "Expect ';' after value.");
+    return new Stmt.Print(value);
+  }
+
+  private Stmt varDeclaration() {
+    Token name = consume(IDENTIFIER, "Expect variable name.");
+
+    Expr initializer = null;
+    if (match(EQUAL)) {
+      initializer = expression();
+    }
+
+    consume(SEMICOLON, "Expect ';' after variable declaration.");
+    return new Stmt.Var(name, initializer);
+  }
+
+  private Stmt expressionStatement() {
+    Expr expr = expression();
+    consume(SEMICOLON, "Expect ';' after expression.");
+    return new Stmt.Expression(expr);
+  }
+
+  private List<Stmt> block() {
+    List<Stmt> statements = new ArrayList<>();
+
+    while (!check(RIGHT_BRACE) && !isAtEnd()) {
+      statements.add(declaration());
+    }
+
+    consume(RIGHT_BRACE, "Expect '}' after block.");
+    return statements;
+  }
+
+  private Expr assignment() {
+    Expr expr = equality();
+
+    if (match(EQUAL)) {
+      Token equals = previous();
+      Expr value = assignment();
+
+      if (expr instanceof Expr.Variable) {
+        Token name = ((Expr.Variable)expr).name;
+        return new Expr.Assign(name, value);
+      }
+
+      error(equals, "Invalid assignment target."); 
+    }
+
+    return expr;
   }
 
   private Expr equality() {
@@ -39,7 +126,7 @@ class Parser {
     return expr;
   }
 
-  private Expr comparison() {
+     private Expr comparison() {
     Expr expr = term();
 
     while (match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
@@ -63,7 +150,7 @@ class Parser {
     return expr;
   }
 
-  private Expr factor() {
+   private Expr factor() {
     Expr expr = unary();
 
     while (match(SLASH, STAR)) {
@@ -75,7 +162,7 @@ class Parser {
     return expr;
   }
 
-  private Expr unary() {
+   private Expr unary() {
     if (match(BANG, MINUS)) {
       Token operator = previous();
       Expr right = unary();
@@ -94,22 +181,26 @@ class Parser {
       return new Expr.Literal(previous().literal);
     }
 
+    if (match(IDENTIFIER)) {
+      return new Expr.Variable(previous());
+    }
+
     if (match(LEFT_PAREN)) {
       Expr expr = expression();
       consume(RIGHT_PAREN, "Expect ')' after expression.");
       return new Expr.Grouping(expr);
     }
+
     throw error(peek(), "Expect expression.");
   }
 
-  private boolean match(TokenType... types) {
+   private boolean match(TokenType... types) {
     for (TokenType type : types) {
       if (check(type)) {
         advance();
         return true;
       }
     }
-
     return false;
   }
 
@@ -119,17 +210,17 @@ class Parser {
     throw error(peek(), message);
   }
 
-  private boolean check(TokenType type) {
+   private boolean check(TokenType type) {
     if (isAtEnd()) return false;
     return peek().type == type;
   }
 
-  private Token advance() {
+   private Token advance() {
     if (!isAtEnd()) current++;
     return previous();
   }
 
-  private boolean isAtEnd() {
+   private boolean isAtEnd() {
     return peek().type == EOF;
   }
 
@@ -167,6 +258,4 @@ class Parser {
       advance();
     }
   }
-
 }
-
