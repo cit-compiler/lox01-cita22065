@@ -1,0 +1,12 @@
+program        ::= declaration* EOF 
+
+declaration    ::= varDecl
+               | statement 
+
+statement      ::= exprStmt
+               | printStmt 
+
+exprStmt       ::= expression ";"
+printStmt      ::= "print" expression ";"
+
+varDecl        ::= "var" IDENTIFIER ( "=" expression )? ";" ;
